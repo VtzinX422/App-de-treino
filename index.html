@@ -733,71 +733,63 @@ function analyzePose(landmarks){
     document.getElementById('phaseLabel').textContent = '⬆ SUBINDO';
     phase = 'up';
     inRep = false;
-    // Count rep only if hip was ok during movement
-    if(hip > 150) incrementRep();
-    else {
-      if(canShowError('hip_rep')){
-        showToast('error','🍑','Rep não contada — Quadril caído',
-          'Seu quadril afundou durante a repetição. A rep não foi contabilizada.',
-          'Contraia o core forte e mantenha o corpo como uma prancha do cabeça ao calcanhar.');
-        addFeedback('❌','Rep invalidada — quadril','Mantenha o corpo em linha reta.');
-      }
-    }
+    // Conta a rep sempre — só avisa se quadril MUITO fora, não invalida
+    incrementRep();
   } else if(avgElbow > 155){
     document.getElementById('phaseLabel').textContent = '▶ POSIÇÃO INICIAL';
     phase = 'up';
   }
 
-  // ── FORM CHECKS ──
+  // ── FORM CHECKS — só o que realmente importa ──
   let errors = [];
 
-  // 1. Hip sag
-  if(hip < 150 && phase==='down'){
+  // 1. Quadril CLARAMENTE caindo (bem abaixo da linha, margem generosa)
+  if(hip < 135 && phase==='down'){
     errors.push('hip_sag');
     if(canShowError('hip_sag')){
       showToast('error','🍑','Quadril caindo!',
-        'Seu quadril está afundando durante a descida. Isso sobrecarrega a lombar.',
-        'Imagine uma linha reta da cabeça ao calcanhar. Contraia o abdômen como se fosse levar um soco.');
-      addFeedback('⚠️','Quadril caindo','Contraia o core, mantenha linha reta.');
+        'Seu quadril está afundando bastante. Isso sobrecarrega a lombar.',
+        'Contraia o abdômen e mantenha o corpo como uma tábua do cabeça ao calcanhar.');
+      addFeedback('⚠️','Quadril caindo','Core firme — corpo em linha reta.');
     }
   }
 
-  // 2. Hip up (bumbum pro ar)
-  if(hip > 200 && phase==='down'){
+  // 2. Bumbum MUITO alto (tipo downward dog, bem óbvio)
+  if(hip > 215 && phase==='down'){
     errors.push('hip_up');
     if(canShowError('hip_up')){
       showToast('error','🏔️','Bumbum alto demais!',
-        'Seu quadril está muito levantado — parece uma montanha. Isso tira o trabalho do peitoral.',
-        'Abaixe o quadril até ficar alinhado com os ombros e tornozelos.');
-      addFeedback('⚠️','Quadril muito alto','Baixe o quadril até alinhar com o corpo.');
+        'Seu quadril está muito levantado. Isso tira o trabalho do peitoral.',
+        'Abaixe o quadril até alinhar com os ombros e tornozelos.');
+      addFeedback('⚠️','Quadril muito alto','Baixe o quadril pra alinhar o corpo.');
     }
   }
 
-  // 3. Elbow flare (cotovelos muito abertos)
-  if(shoulderL > 70 && phase==='down'){
+  // 3. Cotovelo só em casos EXTREMOS (>85°) — ignora variações normais
+  if(shoulderL > 85 && phase==='down'){
     errors.push('elbow_flare');
     if(canShowError('elbow_flare')){
       showToast('error','💪','Cotovelos muito abertos!',
-        'Seus cotovelos estão se abrindo mais de 70° do tronco. Isso estresa o ombro.',
-        'Feche um pouco os cotovelos, deixando-os entre 45–60° do seu corpo durante a descida.');
-      addFeedback('⚠️','Cotovelos abertos','Aproxime os cotovelos do tronco.');
+        'Seus cotovelos estão extremamente abertos. Isso pode machucar o ombro.',
+        'Feche um pouco os cotovelos. Não precisa colar no corpo — só não deixar voar.');
+      addFeedback('⚠️','Cotovelos muito abertos','Feche levemente os cotovelos.');
     }
   }
 
-  // 4. Not going deep enough
-  if(phase==='down' && avgElbow > 140 && inRep){
+  // 4. Descida rasa só se tiver BEM rasa (>150°) e já tiver iniciado rep há tempo
+  if(phase==='down' && avgElbow > 150 && inRep){
     errors.push('too_shallow');
     if(canShowError('too_shallow')){
-      showToast('error','📏','Amplitude insuficiente!',
-        'Você não está descendo o suficiente. O peito deve quase tocar o chão.',
-        'Continue descendo até o ângulo do cotovelo chegar a 80–100°. Isso maximiza o trabalho muscular.');
-      addFeedback('⚠️','Descida rasa','Desça mais — cotovelo até ~90°.');
+      showToast('error','📏','Descida muito rasa!',
+        'Você mal dobrou os braços. Desça mais pra sentir o exercício de verdade.',
+        'Não precisa tocar o chão — mas tente passar dos 90° no cotovelo.');
+      addFeedback('⚠️','Descida rasa','Desça um pouco mais.');
     }
   }
 
-  // 5. Good form feedback
-  if(errors.length===0 && phase==='down' && avgElbow < 120 && hip>155){
-    setFormStatus('good','BOA FORMA');
+  // Status geral
+  if(errors.length===0 && phase==='down' && avgElbow < 130){
+    setFormStatus('good','BOA FORMA 🔥');
   } else if(errors.length>0){
     setFormStatus('bad','CORRIJA A POSTURA');
   } else {

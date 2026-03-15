@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PUSH// Trainer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c10;
+  --surface:#0e1318;
+  --card:#131920;
+  --border:#1e2830;
+  --accent:#00e5ff;
+  --green:#00ff88;
+  --red:#ff3b5c;
+  --yellow:#ffcc00;
+  --text:#eef2f7;
+  --muted:#4a5568;
+  --syne:'Syne',sans-serif;
+  --mono:'DM Mono',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--mono);
+  display:flex;
+  flex-direction:column;
+}
+
+/* ── SCANLINES ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,229,255,.012) 3px,rgba(0,229,255,.012) 4px);
+  pointer-events:none;z-index:9999;
+}
+
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  flex-shrink:0;
+}
+.logo{font-family:var(--syne);font-size:22px;letter-spacing:2px;color:var(--accent)}
+.logo span{color:var(--text);opacity:.4}
+.header-stats{display:flex;gap:16px;align-items:center}
+.stat-pill{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px;
+  font-size:11px;letter-spacing:1.5px;
+  display:flex;align-items:center;gap:6px;
+}
+.stat-pill .val{color:var(--accent);font-size:14px;font-weight:500}
+#btnSearch{
+  background:none;border:1px solid var(--border);
+  color:var(--accent);font-family:var(--mono);
+  font-size:11px;letter-spacing:2px;padding:6px 14px;
+  border-radius:20px;cursor:pointer;transition:.2s;
+}
+#btnSearch:hover{background:rgba(0,229,255,.08);border-color:var(--accent)}
+
+/* ── MAIN ── */
+main{
+  flex:1;display:flex;gap:0;overflow:hidden;
+  position:relative;
+}
+
+/* ── CAMERA AREA ── */
+.camera-area{
+  flex:1;position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:#000;
+}
+#videoEl{
+  width:100%;height:100%;object-fit:cover;
+  transform:scaleX(-1);
+  display:block;
+}
+#canvasEl{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  transform:scaleX(-1);
+}
+
+/* permission overlay */
+.cam-overlay{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--bg);
+  gap:16px;z-index:10;
+  text-align:center;padding:24px;
+}
+.cam-overlay.hidden{display:none}
+.cam-icon{font-size:48px;margin-bottom:8px}
+.cam-overlay h2{font-family:var(--syne);font-size:20px;color:var(--accent)}
+.cam-overlay p{font-size:12px;color:var(--muted);max-width:260px;line-height:1.7}
+#btnCam{
+  background:var(--accent);color:#000;font-family:var(--syne);
+  font-size:13px;font-weight:700;letter-spacing:2px;
+  border:none;padding:12px 28px;border-radius:4px;cursor:pointer;
+  margin-top:8px;transition:.2s;
+}
+#btnCam:hover{opacity:.85}
+
+/* loading mediapipe */
+#loadingOverlay{
+  position:absolute;inset:0;background:rgba(8,12,16,.92);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;z-index:11;
+}
+#loadingOverlay.hidden{display:none}
+.loader-ring{
+  width:44px;height:44px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadingOverlay p{font-size:11px;letter-spacing:2px;color:var(--muted)}
+
+/* ── FORM STATUS BAR (bottom of camera) ── */
+#formBar{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:10px 16px;
+  background:linear-gradient(transparent,rgba(8,12,16,.95));
+  display:flex;align-items:center;justify-content:space-between;
+  z-index:5;
+}
+.form-badge{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;letter-spacing:1.5px;
+}
+.form-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);transition:.3s}
+.form-dot.good{background:var(--green);box-shadow:0 0 8px var(--green)}
+.form-dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
+.form-dot.warn{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
+
+#phaseLabel{
+  font-size:11px;letter-spacing:2px;color:var(--muted);
+  background:var(--card);border:1px solid var(--border);
+  padding:3px 10px;border-radius:20px;
+}
+
+/* ── SIDE PANEL ── */
+.side-panel{
+  width:220px;flex-shrink:0;
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+.panel-section{
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.panel-label{
+  font-size:9px;letter-spacing:3px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:10px;
+}
+
+/* rep counter */
+.rep-counter{
+  display:flex;align-items:flex-end;gap:6px;
+  margin-bottom:6px;
+}
+.rep-num{
+  font-family:var(--syne);font-size:52px;line-height:1;
+  color:var(--accent);transition:.15s;
+}
+.rep-num.pulse{animation:repPulse .3s ease-out}
+@keyframes repPulse{
+  0%{transform:scale(1.2);color:var(--green)}
+  100%{transform:scale(1);color:var(--accent)}
+}
+.rep-unit{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+
+/* progress bar */
+.progress-wrap{
+  background:var(--card);border-radius:3px;overflow:hidden;height:5px;
+  border:1px solid var(--border);
+}
+.progress-fill{
+  height:100%;background:var(--accent);
+  transition:width .4s ease;
+  box-shadow:0 0 8px var(--accent);
+}
+
+/* sets */
+.sets-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.set-dot{
+  width:28px;height:28px;border-radius:4px;
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:var(--muted);
+  transition:.3s;
+}
+.set-dot.done{
+  background:rgba(0,255,136,.1);
+  border-color:var(--green);
+  color:var(--green);
+}
+.set-dot.active{
+  border-color:var(--accent);
+  color:var(--accent);
+  box-shadow:0 0 6px rgba(0,229,255,.3);
+}
+
+/* angle display */
+.angle-row{display:flex;flex-direction:column;gap:8px}
+.angle-item{
+  display:flex;justify-content:space-between;align-items:center;
+}
+.angle-name{font-size:10px;letter-spacing:1.5px;color:var(--muted)}
+.angle-val{
+  font-size:13px;color:var(--text);
+  transition:color .2s;
+}
+.angle-val.ok{color:var(--green)}
+.angle-val.bad{color:var(--red)}
+.angle-bar-wrap{height:3px;background:var(--card);border-radius:2px;overflow:hidden;margin-top:3px}
+.angle-bar{height:100%;border-radius:2px;transition:width .2s,background .2s}
+
+/* feedback feed */
+.feedback-feed{
+  flex:1;overflow-y:auto;padding:0;
+  scrollbar-width:thin;
+  scrollbar-color:#1e2830 transparent;
+}
+.feedback-feed::-webkit-scrollbar{width:3px}
+.feedback-feed::-webkit-scrollbar-thumb{background:var(--border)}
+
+.feedback-item{
+  padding:10px 16px;
+  border-bottom:1px solid #0e1318;
+  display:flex;gap:10px;
+  animation:feedIn .35s ease-out;
+}
+@keyframes feedIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.fb-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.fb-body{}
+.fb-title{font-size:11px;color:var(--text);margin-bottom:2px}
+.fb-desc{font-size:10px;color:var(--muted);line-height:1.5}
+
+/* ── NOTIFICATION TOAST ── */
+#toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-20px);
+  background:var(--card);border:1px solid var(--border);
+  border-radius:8px;padding:14px 18px;
+  max-width:340px;width:90%;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  z-index:1000;opacity:0;pointer-events:none;
+  transition:all .35s cubic-bezier(.34,1.56,.64,1);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:all}
+#toast.error{border-color:rgba(255,59,92,.4);background:rgba(15,8,12,.95)}
+#toast.success{border-color:rgba(0,255,136,.3)}
+.toast-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.toast-icon{font-size:18px}
+.toast-title{font-family:var(--syne);font-size:14px}
+.toast-body{font-size:11px;color:var(--muted);line-height:1.6}
+.toast-tip{
+  margin-top:8px;padding:8px 10px;
+  background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.15);
+  border-radius:4px;
+  font-size:10px;color:var(--accent);line-height:1.5;
+  letter-spacing:.5px;
+}
+#toast-close{
+  position:absolute;top:10px;right:12px;
+  background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;
+}
+
+/* ── REFERENCE MODAL ── */
+#refModal{
+  position:fixed;inset:0;background:rgba(8,12,16,.95);
+  z-index:2000;display:flex;align-items:center;justify-content:center;
+  padding:20px;
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+#refModal.show{opacity:1;pointer-events:all}
+.modal-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:8px;max-width:480px;width:100%;
+  max-height:80vh;overflow-y:auto;
+  padding:24px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border) transparent;
+}
+.modal-card h2{font-family:var(--syne);font-size:20px;color:var(--accent);margin-bottom:4px}
+.modal-card .sub{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:20px}
+.modal-close{
+  float:right;background:none;border:none;
+  color:var(--muted);font-size:20px;cursor:pointer;
+  margin-top:-4px;
+}
+.ref-type{
+  display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;
+}
+.ref-btn{
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--muted);font-family:var(--mono);font-size:11px;
+  letter-spacing:1.5px;padding:6px 14px;border-radius:20px;cursor:pointer;
+  transition:.2s;
+}
+.ref-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.06)}
+.ref-steps{display:flex;flex-direction:column;gap:12px}
+.ref-step{
+  display:flex;gap:14px;align-items:flex-start;
+  padding:12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;
+}
+.ref-step-num{
+  font-family:var(--syne);font-size:22px;color:var(--accent);
+  min-width:28px;line-height:1;
+}
+.ref-step-body{}
+.ref-step-title{font-size:12px;color:var(--text);margin-bottom:3px;letter-spacing:.5px}
+.ref-step-desc{font-size:11px;color:var(--muted);line-height:1.6}
+.ref-angles{
+  margin-top:16px;padding:12px;
+  background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);
+  border-radius:6px;
+}
+.ref-angles h3{font-size:10px;letter-spacing:3px;color:var(--accent);margin-bottom:10px}
+.ref-angle-row{
+  display:flex;justify-content:space-between;
+  font-size:11px;padding:4px 0;
+  border-bottom:1px solid var(--border);
+}
+.ref-angle-row:last-child{border:none}
+.ref-angle-row span:last-child{color:var(--yellow)}
+
+/* start btn */
+#btnStart{
+  display:block;width:100%;margin-top:20px;
+  background:var(--accent);color:#000;font-family:var(--syne);
+  font-size:13px;font-weight:700;letter-spacing:2px;
+  border:none;padding:14px;border-radius:4px;cursor:pointer;
+  transition:.2s;
+}
+#btnStart:hover{opacity:.85}
+
+/* ── RESPONSIVE ── */
+@media(max-width:580px){
+  .side-panel{width:160px}
+  .rep-num{font-size:40px}
+}
+@media(max-width:440px){
+  .side-panel{display:none}
+  #formBar{flex-direction:column;gap:6px;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">PUSH<span>//</span>TRAINER</div>
+  <div class="header-stats">
+    <div class="stat-pill">REPS <span class="val" id="hdrReps">0</span></div>
+    <div class="stat-pill">SETS <span class="val" id="hdrSets">0</span></div>
+    <button id="btnSearch" onclick="openRef()">📋 REFERÊNCIA</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- CAMERA -->
+  <div class="camera-area">
+    <video id="videoEl" playsinline muted></video>
+    <canvas id="canvasEl"></canvas>
+
+    <!-- form bar -->
+    <div id="formBar">
+      <div class="form-badge">
+        <div class="form-dot" id="formDot"></div>
+        <span id="formText" style="font-size:11px;letter-spacing:1.5px">AGUARDANDO</span>
+      </div>
+      <div id="phaseLabel">—</div>
+    </div>
+
+    <!-- permission overlay -->
+    <div class="cam-overlay" id="camOverlay">
+      <div class="cam-icon">📷</div>
+      <h2>CÂMERA NECESSÁRIA</h2>
+      <p>O app usa sua câmera frontal pra analisar seus movimentos em tempo real via MediaPipe.</p>
+      <button id="btnCam" onclick="startCamera()">ATIVAR CÂMERA</button>
+    </div>
+
+    <!-- loading -->
+    <div id="loadingOverlay" class="hidden">
+      <div class="loader-ring"></div>
+      <p>CARREGANDO MEDIAPIPE...</p>
+    </div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+
+    <div class="panel-section">
+      <div class="panel-label">Repetições</div>
+      <div class="rep-counter">
+        <div class="rep-num" id="repNum">0</div>
+        <div class="rep-unit">/ <span id="repGoal">10</span><br>reps</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <div class="sets-row" id="setsRow">
+        <div class="set-dot active">S1</div>
+        <div class="set-dot">S2</div>
+        <div class="set-dot">S3</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Ângulos</div>
+      <div class="angle-row">
+        <div class="angle-item">
+          <div>
+            <div class="angle-name">COTOVELO E</div>
+            <div class="angle-bar-wrap"><div class="angle-bar" id="barElbowL" style="width:0%"></div></div>
+          </div>
+          <div class="angle-val" id="valElbowL">—°</div>
+        </div>
+        <div class="angle-item">
+          <div>
+            <div class="angle-name">COTOVELO D</div>
+            <div class="angle-bar-wrap"><div class="angle-bar" id="barElbowR" style="width:0%"></div></div>
+          </div>
+          <div class="angle-val" id="valElbowR">—°</div>
+        </div>
+        <div class="angle-item">
+          <div>
+            <div class="angle-name">QUADRIL</div>
+            <div class="angle-bar-wrap"><div class="angle-bar" id="barHip" style="width:0%"></div></div>
+          </div>
+          <div class="angle-val" id="valHip">—°</div>
+        </div>
+        <div class="angle-item">
+          <div>
+            <div class="angle-name">OMBRO E</div>
+            <div class="angle-bar-wrap"><div class="angle-bar" id="barShoulder" style="width:0%"></div></div>
+          </div>
+          <div class="angle-val" id="valShoulder">—°</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-label" style="padding:10px 16px 6px">Feedback</div>
+    <div class="feedback-feed" id="feedbackFeed">
+      <div style="padding:16px;font-size:10px;color:var(--muted);letter-spacing:1.5px;line-height:1.8">
+        INICIE A CÂMERA<br>E ASSUMA A POSIÇÃO<br>DE FLEXÃO
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div id="toast">
+  <button id="toast-close" onclick="closeToast()">×</button>
+  <div class="toast-header">
+    <span class="toast-icon" id="toastIcon">⚠️</span>
+    <span class="toast-title" id="toastTitle">Título</span>
+  </div>
+  <div class="toast-body" id="toastBody">Descrição</div>
+  <div class="toast-tip" id="toastTip" style="display:none"></div>
+</div>
+
+<!-- REFERENCE MODAL -->
+<div id="refModal">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeRef()">×</button>
+    <h2>FLEXÕES — REFERÊNCIA</h2>
+    <div class="sub">MOVIMENTO CORRETO</div>
+
+    <div class="ref-type">
+      <button class="ref-btn active" onclick="showRefType('standard',this)">PADRÃO</button>
+      <button class="ref-btn" onclick="showRefType('wide',this)">ABERTA</button>
+      <button class="ref-btn" onclick="showRefType('diamond',this)">DIAMANTE</button>
+      <button class="ref-btn" onclick="showRefType('incline',this)">INCLINADA</button>
+    </div>
+
+    <div class="ref-steps" id="refSteps"></div>
+
+    <div class="ref-angles">
+      <h3>ÂNGULOS ALVO</h3>
+      <div id="refAnglesTable"></div>
+    </div>
+
+    <button id="btnStart" onclick="closeRef()">ENTENDI — INICIAR TREINO</button>
+  </div>
+</div>
+
+<!-- MediaPipe via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+<script>
+// ── REFERENCE DATA ──
+const REF_TYPES = {
+  standard:{
+    name:'Flexão Padrão',
+    steps:[
+      {title:'Posição inicial — prancha alta',desc:'Mãos na largura dos ombros, dedos apontados pra frente. Corpo reto do cabeça ao calcanhar, core contraído.'},
+      {title:'Descida controlada',desc:'Dobre os cotovelos a ~45° do corpo. Desça até o peito quase tocar o chão. Ângulo do cotovelo deve chegar a 80–100°.'},
+      {title:'Subida explosiva',desc:'Empurre o chão, estenda os braços completamente. Não trave os cotovelos. Ângulo deve voltar a 160–180°.'},
+      {title:'Core e quadril',desc:'Quadril em linha reta com o corpo o tempo todo. Sem empinar o bumbum pra cima nem afundar o quadril.'},
+    ],
+    angles:{'Cotovelo (baixo)':'80–100°','Cotovelo (cima)':'160–180°','Quadril (linha)':'160–180°','Ombro (abdução)':'30–50°'}
+  },
+  wide:{
+    name:'Flexão Aberta',
+    steps:[
+      {title:'Mãos mais largas',desc:'Posicione as mãos 1.5× a largura dos ombros. Foca mais no peitoral externo.'},
+      {title:'Cotovelos se abrem',desc:'Cotovelos formam ~70–80° com o tronco durante a descida — mais aberto que a padrão.'},
+      {title:'Descida mais rasa',desc:'Por conta da abertura maior, a amplitude é um pouco menor. Peito deve tocar ~5cm do chão.'},
+      {title:'Subida lenta',desc:'Controle a subida, sentindo o alongamento no peitoral.'},
+    ],
+    angles:{'Cotovelo (baixo)':'70–90°','Cotovelo (cima)':'155–175°','Quadril (linha)':'160–180°','Ombro (abdução)':'60–80°'}
+  },
+  diamond:{
+    name:'Flexão Diamante',
+    steps:[
+      {title:'Mãos em triângulo',desc:'Polegares e indicadores se tocam formando um losango abaixo do esterno.'},
+      {title:'Cotovelos colados',desc:'Cotovelos deslizam bem próximos ao tronco durante toda a descida. Foca tríceps e peitoral medial.'},
+      {title:'Descida profunda',desc:'Peito até tocar as mãos. Ângulo de cotovelo vai a ~70–80° na posição mais baixa.'},
+      {title:'Alinhamento',desc:'Por ser mais exigente, mantenha o core extra-rígido pra não deixar o quadril cair.'},
+    ],
+    angles:{'Cotovelo (baixo)':'65–85°','Cotovelo (cima)':'160–180°','Quadril (linha)':'160–180°','Ombro (abdução)':'10–25°'}
+  },
+  incline:{
+    name:'Flexão Inclinada',
+    steps:[
+      {title:'Mãos em superfície elevada',desc:'Mãos em mesa, cadeira ou parede. Quanto mais alto, mais fácil — bom pra iniciantes.'},
+      {title:'Corpo em ângulo',desc:'Corpo forma um ângulo com o chão. Manter a mesma linha reta da versão padrão.'},
+      {title:'Descida ao peito',desc:'Desça até o peito chegar perto da superfície. Mesma mecânica da flexão padrão.'},
+      {title:'Foco no peitoral superior',desc:'A inclinação transfere mais foco pro peitoral superior e ombros.'},
+    ],
+    angles:{'Cotovelo (baixo)':'80–100°','Cotovelo (cima)':'155–175°','Quadril (linha)':'155–175°','Ombro (abdução)':'35–55°'}
+  }
+};
+
+let currentRefType = 'standard';
+function showRefType(type, btn){
+  currentRefType = type;
+  document.querySelectorAll('.ref-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRef();
+}
+function renderRef(){
+  const d = REF_TYPES[currentRefType];
+  const steps = document.getElementById('refSteps');
+  steps.innerHTML = d.steps.map((s,i)=>`
+    <div class="ref-step">
+      <div class="ref-step-num">${i+1}</div>
+      <div class="ref-step-body">
+        <div class="ref-step-title">${s.title}</div>
+        <div class="ref-step-desc">${s.desc}</div>
+      </div>
+    </div>
+  `).join('');
+  const tbl = document.getElementById('refAnglesTable');
+  tbl.innerHTML = Object.entries(d.angles).map(([k,v])=>`
+    <div class="ref-angle-row"><span>${k}</span><span>${v}</span></div>
+  `).join('');
+}
+function openRef(){ renderRef(); document.getElementById('refModal').classList.add('show'); }
+function closeRef(){ document.getElementById('refModal').classList.remove('show'); }
+renderRef();
+
+// ── TOAST ──
+let toastTimer = null;
+function showToast(type, icon, title, body, tip='', duration=5000){
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent  = icon;
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastBody').textContent  = body;
+  const tipEl = document.getElementById('toastTip');
+  if(tip){ tipEl.textContent = '💡 '+tip; tipEl.style.display='block'; }
+  else tipEl.style.display='none';
+  t.className = `show ${type}`;
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(closeToast, duration);
+}
+function closeToast(){
+  document.getElementById('toast').classList.remove('show','error','success');
+}
+
+// ── FEEDBACK FEED ──
+let feedCount = 0;
+function addFeedback(icon, title, desc){
+  const feed = document.getElementById('feedbackFeed');
+  // clear placeholder
+  if(feedCount===0) feed.innerHTML='';
+  feedCount++;
+  const div = document.createElement('div');
+  div.className = 'feedback-item';
+  div.innerHTML=`<div class="fb-icon">${icon}</div><div class="fb-body"><div class="fb-title">${title}</div><div class="fb-desc">${desc}</div></div>`;
+  feed.insertBefore(div, feed.firstChild);
+  if(feed.children.length>30) feed.removeChild(feed.lastChild);
+}
+
+// ── STATE ──
+let repCount   = 0;
+let setCount   = 1;
+const REP_GOAL = 10;
+const SET_GOAL = 3;
+let phase      = 'up'; // up | down
+let inRep      = false;
+let lastErrors = {};
+let errorCooldown = {};
+const ERROR_COOLDOWN_MS = 4000;
+
+function canShowError(key){
+  const now = Date.now();
+  if(!errorCooldown[key] || now - errorCooldown[key] > ERROR_COOLDOWN_MS){
+    errorCooldown[key] = now;
+    return true;
+  }
+  return false;
+}
+
+// ── ANGLE MATH ──
+function angle3(a,b,c){
+  const ab = {x:a.x-b.x,y:a.y-b.y};
+  const cb = {x:c.x-b.x,y:c.y-b.y};
+  const dot = ab.x*cb.x + ab.y*cb.y;
+  const mag = Math.sqrt(ab.x**2+ab.y**2)*Math.sqrt(cb.x**2+cb.y**2);
+  if(mag===0) return 0;
+  return Math.round(Math.acos(Math.min(1,Math.max(-1,dot/mag)))*180/Math.PI);
+}
+
+// ── ANGLE UI ──
+function setAngleUI(id, barId, val, min, max, okMin, okMax){
+  const el  = document.getElementById(id);
+  const bar = document.getElementById(barId);
+  el.textContent = val+'°';
+  const pct = Math.min(100,Math.max(0,(val-min)/(max-min)*100));
+  bar.style.width = pct+'%';
+  const ok = val>=okMin && val<=okMax;
+  el.className = 'angle-val '+(ok?'ok':'bad');
+  bar.style.background = ok?'var(--green)':'var(--red)';
+}
+
+// ── REP COUNTER ──
+function incrementRep(){
+  repCount++;
+  document.getElementById('hdrReps').textContent = repCount;
+  const num = document.getElementById('repNum');
+  num.textContent = repCount;
+  num.classList.remove('pulse');
+  void num.offsetWidth;
+  num.classList.add('pulse');
+  document.getElementById('progressFill').style.width = Math.min(100,(repCount/REP_GOAL*100))+'%';
+  addFeedback('✅',`Rep ${repCount} completa!`,'Boa forma! Continue assim.');
+
+  if(repCount>=REP_GOAL){
+    showToast('success','🎉','SET COMPLETO!',`Você completou ${REP_GOAL} flexões no Set ${setCount}.`,'Descanse 60–90 segundos antes do próximo set.');
+    addFeedback('🏆',`Set ${setCount} completo!`,`${REP_GOAL} reps — bom trabalho!`);
+    repCount = 0;
+    document.getElementById('progressFill').style.width='0%';
+    document.getElementById('repNum').textContent='0';
+
+    const dots = document.querySelectorAll('.set-dot');
+    if(setCount<=dots.length){
+      dots[setCount-1].classList.remove('active');
+      dots[setCount-1].classList.add('done');
+      dots[setCount-1].textContent='✓';
+    }
+    setCount++;
+    document.getElementById('hdrSets').textContent = setCount-1;
+    if(setCount-1 < SET_GOAL && setCount<=dots.length){
+      dots[setCount-1].classList.add('active');
+    }
+  }
+}
+
+// ── POSE ANALYSIS ──
+function analyzePose(landmarks){
+  if(!landmarks || landmarks.length<33) return;
+
+  const lm = landmarks;
+  // Landmark indices
+  const LShoulder=11,RShoulder=12,LElbow=13,RElbow=14,LWrist=15,RWrist=16;
+  const LHip=23,RHip=24,LKnee=25,RKnee=26;
+
+  const ls=lm[LShoulder],rs=lm[RShoulder];
+  const le=lm[LElbow],re=lm[RElbow];
+  const lw=lm[LWrist],rw=lm[RWrist];
+  const lh=lm[LHip],rh=lm[RHip];
+  const lk=lm[LKnee],rk=lm[RKnee];
+
+  // Visibility check
+  const visible = [ls,rs,le,re,lw,rw,lh,rh].every(p=>p && p.visibility>0.4);
+  if(!visible){
+    setFormStatus('warn','REAJUSTE A CÂMERA');
+    document.getElementById('phaseLabel').textContent='—';
+    return;
+  }
+
+  // Calculate angles
+  const elbowL    = angle3(ls,le,lw);
+  const elbowR    = angle3(rs,re,rw);
+  const hipL      = angle3(ls,lh,lk);
+  const hipR      = angle3(rs,rh,rk);
+  const hip       = Math.round((hipL+hipR)/2);
+  const shoulderL = angle3(lh,ls,le);
+
+  setAngleUI('valElbowL','barElbowL',elbowL,60,180,80,160);
+  setAngleUI('valElbowR','barElbowR',elbowR,60,180,80,160);
+  setAngleUI('valHip','barHip',hip,100,180,155,180);
+  setAngleUI('valShoulder','barShoulder',shoulderL,0,90,25,65);
+
+  const avgElbow = Math.round((elbowL+elbowR)/2);
+
+  // Phase detection
+  if(avgElbow < 110){
+    document.getElementById('phaseLabel').textContent = '⬇ DESCENDO';
+    phase = 'down';
+    inRep = true;
+  } else if(avgElbow > 155 && inRep && phase==='down'){
+    document.getElementById('phaseLabel').textContent = '⬆ SUBINDO';
+    phase = 'up';
+    inRep = false;
+    // Count rep only if hip was ok during movement
+    if(hip > 150) incrementRep();
+    else {
+      if(canShowError('hip_rep')){
+        showToast('error','🍑','Rep não contada — Quadril caído',
+          'Seu quadril afundou durante a repetição. A rep não foi contabilizada.',
+          'Contraia o core forte e mantenha o corpo como uma prancha do cabeça ao calcanhar.');
+        addFeedback('❌','Rep invalidada — quadril','Mantenha o corpo em linha reta.');
+      }
+    }
+  } else if(avgElbow > 155){
+    document.getElementById('phaseLabel').textContent = '▶ POSIÇÃO INICIAL';
+    phase = 'up';
+  }
+
+  // ── FORM CHECKS ──
+  let errors = [];
+
+  // 1. Hip sag
+  if(hip < 150 && phase==='down'){
+    errors.push('hip_sag');
+    if(canShowError('hip_sag')){
+      showToast('error','🍑','Quadril caindo!',
+        'Seu quadril está afundando durante a descida. Isso sobrecarrega a lombar.',
+        'Imagine uma linha reta da cabeça ao calcanhar. Contraia o abdômen como se fosse levar um soco.');
+      addFeedback('⚠️','Quadril caindo','Contraia o core, mantenha linha reta.');
+    }
+  }
+
+  // 2. Hip up (bumbum pro ar)
+  if(hip > 200 && phase==='down'){
+    errors.push('hip_up');
+    if(canShowError('hip_up')){
+      showToast('error','🏔️','Bumbum alto demais!',
+        'Seu quadril está muito levantado — parece uma montanha. Isso tira o trabalho do peitoral.',
+        'Abaixe o quadril até ficar alinhado com os ombros e tornozelos.');
+      addFeedback('⚠️','Quadril muito alto','Baixe o quadril até alinhar com o corpo.');
+    }
+  }
+
+  // 3. Elbow flare (cotovelos muito abertos)
+  if(shoulderL > 70 && phase==='down'){
+    errors.push('elbow_flare');
+    if(canShowError('elbow_flare')){
+      showToast('error','💪','Cotovelos muito abertos!',
+        'Seus cotovelos estão se abrindo mais de 70° do tronco. Isso estresa o ombro.',
+        'Feche um pouco os cotovelos, deixando-os entre 45–60° do seu corpo durante a descida.');
+      addFeedback('⚠️','Cotovelos abertos','Aproxime os cotovelos do tronco.');
+    }
+  }
+
+  // 4. Not going deep enough
+  if(phase==='down' && avgElbow > 140 && inRep){
+    errors.push('too_shallow');
+    if(canShowError('too_shallow')){
+      showToast('error','📏','Amplitude insuficiente!',
+        'Você não está descendo o suficiente. O peito deve quase tocar o chão.',
+        'Continue descendo até o ângulo do cotovelo chegar a 80–100°. Isso maximiza o trabalho muscular.');
+      addFeedback('⚠️','Descida rasa','Desça mais — cotovelo até ~90°.');
+    }
+  }
+
+  // 5. Good form feedback
+  if(errors.length===0 && phase==='down' && avgElbow < 120 && hip>155){
+    setFormStatus('good','BOA FORMA');
+  } else if(errors.length>0){
+    setFormStatus('bad','CORRIJA A POSTURA');
+  } else {
+    setFormStatus('good','FORMA OK');
+  }
+}
+
+function setFormStatus(type, text){
+  const dot  = document.getElementById('formDot');
+  const label= document.getElementById('formText');
+  dot.className = 'form-dot '+type;
+  label.textContent = text;
+}
+
+// ── MEDIAPIPE SETUP ──
+let pose, camera;
+
+async function startCamera(){
+  document.getElementById('camOverlay').classList.add('hidden');
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+
+  const video = document.getElementById('videoEl');
+  const canvas= document.getElementById('canvasEl');
+  const ctx   = canvas.getContext('2d');
+
+  // Init Pose
+  pose = new Pose({locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.55,
+    minTrackingConfidence: 0.55
+  });
+
+  pose.onResults(results=>{
+    canvas.width  = video.videoWidth  || canvas.offsetWidth;
+    canvas.height = video.videoHeight || canvas.offsetHeight;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if(results.poseLandmarks){
+      // Draw skeleton
+      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+        {color:'rgba(0,229,255,0.35)',lineWidth:2});
+      drawLandmarks(ctx, results.poseLandmarks,
+        {color:'rgba(0,255,136,0.8)',fillColor:'rgba(0,255,136,0.2)',lineWidth:1,radius:4});
+      analyzePose(results.poseLandmarks);
+    }
+  });
+
+  // Camera
+  camera = new Camera(video,{
+    onFrame: async()=>{ await pose.send({image:video}); },
+    width:640, height:480,
+    facingMode:'user'
+  });
+
+  try{
+    await camera.start();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    addFeedback('📷','Câmera ativa','Assuma a posição de flexão para começar!');
+    showToast('success','🏋️','Pronto pra treinar!',
+      'Posicione o celular de lado para ver o corpo inteiro.',
+      'A câmera lateral mostra melhor o alinhamento do quadril e cotovelos.');
+  } catch(e){
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('camOverlay').classList.remove('hidden');
+    document.getElementById('camOverlay').innerHTML=`
+      <div class="cam-icon">🚫</div>
+      <h2 style="color:var(--red)">CÂMERA BLOQUEADA</h2>
+      <p>Permissão negada ou protocolo não seguro.<br><br>
+      <strong style="color:var(--accent)">Use HTTPS ou localhost.</strong><br>
+      <code style="color:var(--yellow);font-size:11px">file:// e content:// não funcionam.</code></p>
+      <button id="btnCam" onclick="startCamera()" style="margin-top:16px">TENTAR NOVAMENTE</button>
+    `;
+  }
+}
+
+// Auto init check
+window.addEventListener('load',()=>{
+  if(location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1'){
+    // safe context, show start button normally
+  } else {
+    const overlay = document.getElementById('camOverlay');
+    overlay.innerHTML=`
+      <div class="cam-icon">⚠️</div>
+      <h2 style="color:var(--yellow)">PROTOCOLO NÃO SEGURO</h2>
+      <p>Este app precisa de <strong style="color:var(--accent)">HTTPS</strong> pra acessar a câmera.<br><br>
+      Faça o deploy em:<br>
+      <strong style="color:var(--green)">GitHub Pages · Vercel · Netlify</strong><br><br>
+      <code style="font-size:10px;color:var(--muted)">${location.protocol}//${location.host}</code> não funciona.</p>
+    `;
+  }
+});
+</script>
+</body>
+</html>
